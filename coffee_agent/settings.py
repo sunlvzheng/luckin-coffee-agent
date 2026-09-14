@@ -40,7 +40,9 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     """手写一个极简 .env 解析，避免引入 python-dotenv 依赖。"""
     result: dict[str, str] = {}
     try:
-        raw = path.read_text(encoding="utf-8")
+        # utf-8-sig：Windows 上用 PowerShell 写的 .env 常带 BOM，
+        # 直接按 utf-8 读会把第一个键名变成 "\ufeffHOST" 而整条失效
+        raw = path.read_text(encoding="utf-8-sig")
     except OSError:
         return result
 
