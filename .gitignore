@@ -6,3 +6,8 @@ __pycache__/
 node_modules/
 .playwright-*.png
 *.log
+
+# PyInstaller 打包产物
+build/
+dist/
+*.spec

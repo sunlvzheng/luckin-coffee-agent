@@ -13,12 +13,23 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = PROJECT_ROOT / ".env"
-DOCS_DIR = PROJECT_ROOT / "docs"
+
+# PyInstaller 打包成单文件 exe 后，代码被解包到临时目录：
+#   - 静态页面等只读资源在 sys._MEIPASS 里
+#   - .env 则要读 exe 旁边的那份（用户能直接改），所以两者分开解析
+if getattr(sys, "frozen", False):
+    RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    CONFIG_ROOT = Path(sys.executable).resolve().parent
+else:
+    RESOURCE_ROOT = CONFIG_ROOT = PROJECT_ROOT
+
+ENV_FILE = CONFIG_ROOT / ".env"
+DOCS_DIR = RESOURCE_ROOT / "docs"
 LUCKIN_HOME = Path.home() / ".luckin"
 
 

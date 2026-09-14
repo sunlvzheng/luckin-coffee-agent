@@ -76,6 +76,10 @@ node scripts/serve_static.mjs 8090 /luckin-agent
 # 然后打开 http://127.0.0.1:8090/luckin-agent/
 ```
 
+> ⚠️ GitHub Pages 对静态资源带约 10 分钟缓存。改完代码推上去后如果页面「看着没变」，
+> 先用 `Ctrl+F5` 强刷；还是旧的说明缓存没到期，等几分钟再看（`index.html` 与 `app.js`
+> 可能一新一旧，这种混合状态很容易误判成代码 bug）。
+
 ### 本地完整版（真实下单）
 
 ```powershell
@@ -83,13 +87,47 @@ copy .env.example .env       # 按需填写（见下方「配置」）
 powershell -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
-打开 <http://127.0.0.1:8000>，在右上角「⚙️ 设置」里把**数据来源**切成「连接服务」，
-后端地址填 `http://127.0.0.1:8000` 即可。也可以直接跑 Node 终端版：
+启动时桥接服务会先做一遍**自检**，并自动打开浏览器：
+
+```
+====================================================================
+  瑞幸点单 Agent · 桥接服务
+====================================================================
+  ✅ luckin CLI  : C:\Users\<你>\AppData\Local\.luckin\bin\luckin.exe
+  ✅ 瑞幸登录态  : 已登录
+  ➖ 服务端模型 : 未配置（不影响 —— 网页里选「直连模型」填自己的 Key 即可）
+  ➖ 访问地址   : http://127.0.0.1:8000
+  ⚠️  访问口令   : 未设置（局域网共享时建议设一个）
+  ✅ 允许跨域   : https://<你的用户名>.github.io
+====================================================================
+```
+
+**不用手动填地址**：页面打开后会自己探测本机桥（`127.0.0.1:8000` / `localhost:8000`），
+探到就在顶部显示 `🔌 本机服务已就绪`，并给一个「切换为真实数据」按钮，点一下即可。
+
+探不到也没关系：顶部会提示「连不上本机服务 → 打开配置向导」，向导里有**三步实时打勾**的清单
+（装 CLI / 登录 / 起桥），每条命令旁边都有「复制」按钮，做完点「重新检测」；如果探到的是
+`localhost` 而当前后端地址是 `127.0.0.1`（两者不同源），可以直接点「用本机服务」一键改好。
+
+不想自动开浏览器就设 `BRIDGE_NO_BROWSER=1`。
+
+也可以直接跑 Node 终端版：
 
 ```powershell
 node bin/coffee.mjs           # 走本机 luckin.exe
 node bin/coffee.mjs --demo    # 不连真实接口，只看流程
 ```
+
+### 不想装 Python？用单文件 exe
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1
+# 产物：dist\luckin-bridge.exe（约 15 MB，网页已打包进去）
+```
+
+把 exe 拷到任意目录双击即可 —— 它会做同样的自检、托管同一个网页、自动开浏览器。
+需要自定义配置就在 exe 旁边放一个 `.env`（exe 不会去别处找）。首次运行 Windows 可能提示
+「未知发布者」，选「更多信息 → 仍要运行」。
 
 ---
 
@@ -145,6 +183,7 @@ HOST=127.0.0.1
 PORT=8000
 # WEB_PASSWORD=my-secret          # 局域网/同事访问时务必设置
 # WEB_ALLOW_ORIGINS=https://你的用户名.github.io   # 静态站连本机服务时才需要
+# BRIDGE_NO_BROWSER=1             # 启动后不要自动打开浏览器
 ```
 
 瑞幸登录态不用配：`luckin.exe` 自己读 `~/.luckin/.env` 里的 `LUCKIN_MCP_ORDER_TOKEN`
@@ -210,10 +249,12 @@ docs/                       ← 静态站点，直接部署到 GitHub Pages
 coffee_agent/               ← 本地薄桥接服务（不含业务逻辑）
   server.py                 /api/invoke · /api/llm · /api/qr · /api/status + 托管 docs/
   luckin_cli.py             luckin.exe 异步封装
-  settings.py               配置加载
+  settings.py               配置加载（区分打包资源目录与 exe 同目录的 .env）
+bridge_main.py              ← 单文件 exe 入口
 bin/coffee.mjs              ← Node 终端版
 scripts/core_test.mjs       ← 心核离线自测
 scripts/smoke.py            ← 真实 CLI 只读冒烟
+scripts/build_exe.ps1       ← 打包单文件 exe
 ```
 
 ---
@@ -224,6 +265,7 @@ scripts/smoke.py            ← 真实 CLI 只读冒烟
 node scripts/core_test.mjs        # 心核：27 项断言，含确认/取消两条分支（不产生订单）
 .\.venv\Scripts\python.exe -m scripts.smoke 39.9042 116.4074   # 真实 CLI 只读链路
 node scripts/serve_static.mjs 8090 /luckin-agent               # 本地预览静态站（模拟 Pages 子路径）
+powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1   # 打包单文件 exe
 ```
 
 ---
