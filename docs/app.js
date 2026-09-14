@@ -80,6 +80,8 @@ const chatEl = $("chat");
 
 /** 本机桥的探测结果：status 为 null 表示没探到 */
 const bridgeState = { status: null, baseUrl: "", checked: false };
+// 用户点过「怎么用真实数据？」就把向导钉住显示，不再由状态决定隐藏
+let wizardForced = false;
 
 const fetchWithTimeout = async (url, ms) => {
   const controller = new AbortController();
@@ -670,6 +672,8 @@ function updateBanner() {
 }
 
 function openWizard() {
+  // 用户主动点了「怎么用真实数据？」/「打开配置向导」，就别再按状态把它藏起来
+  wizardForced = true;
   $("settings").classList.add("open");
   renderWizard();
   $("wizard")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -693,7 +697,7 @@ function renderWizard() {
   const status = bridgeState.status;
   const connected = Boolean(status);
   const isHttp = state.config.backendMode === "http";
-  const shouldShow = isHttp || (connected && !status.ready);
+  const shouldShow = wizardForced || isHttp || (connected && !status.ready);
   if (!shouldShow) {
     box.classList.add("hide");
     box.innerHTML = "";

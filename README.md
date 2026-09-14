@@ -2,6 +2,22 @@
 
 🔗 **在线演示**：<https://sunlvzheng.github.io/luckin-coffee-agent/> —— 打开即是演示模式，零配置、不会下单扣款。
 
+⚡ **想真实下单？一行命令**（Windows，在 PowerShell 里粘上回车）：
+
+```powershell
+irm https://raw.githubusercontent.com/sunlvzheng/luckin-coffee-agent/main/docs/install.ps1 | iex
+```
+
+它会自动：检查/安装瑞幸 CLI → 拉起登录 → 下载单文件服务到 `%LOCALAPPDATA%\LuckinAgent\`
+→ 启动并在浏览器打开 `http://127.0.0.1:8000`。**重复运行也安全**（已装好的直接复用）。
+跑完建议就**用 `127.0.0.1:8000` 那个页面点单**——它和本机服务同源，不需要配跨域。
+
+> 脚本源码就在本仓库里：[`docs/install.ps1`](docs/install.ps1)，可以先读再跑。
+> 为什么不放在 github.io 上？Pages 对 `.ps1` 返回 `application/octet-stream`，
+> `irm` 会按 ISO-8859-1 解码导致中文全乱码；raw 返回 `text/plain; charset=utf-8` 才正常。
+
+---
+
 一套**公用心核**（纯 ESM JavaScript，浏览器 / Node 通用）+ 可插拔后端，把瑞幸官方的点单能力做成
 一个干净的对话式 Agent。既可以直接丢到 **GitHub Pages 当静态站**，也可以在本机跑成**真实下单**的服务。
 
@@ -81,6 +97,8 @@ node scripts/serve_static.mjs 8090 /luckin-agent
 > 可能一新一旧，这种混合状态很容易误判成代码 bug）。
 
 ### 本地完整版（真实下单）
+
+最省事的是上面那条**一行命令**。想自己控制每一步就手动来：
 
 ```powershell
 copy .env.example .env       # 按需填写（见下方「配置」）
