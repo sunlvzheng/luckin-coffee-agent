@@ -1,0 +1,18 @@
+{
+  "name": "luckin-coffee-agent",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "瑞幸点单 Agent：一套公用心核（浏览器 / Node 通用）+ 可插拔后端（mock / 本地桥接 / CLI 直连）",
+  "exports": {
+    ".": "./docs/core/index.js"
+  },
+  "scripts": {
+    "test": "node scripts/core_test.mjs",
+    "chat": "node bin/coffee.mjs",
+    "serve": "python -m coffee_agent.server"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>瑞幸点单 Agent</title>
+<meta name="description" content="纯静态的瑞幸点单 Agent：找个店、挑杯咖啡、试算金额、确认下单，全在对话里完成。支持自带 API Key 直连主流大模型（DeepSeek / 智谱 / Kimi / 通义千问 / 百度千帆 等），Key 只存本机浏览器。" />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="☕ 瑞幸点单 Agent" />
+<meta property="og:description" content="对话式点单演示：找门店 → 挑商品 → 试算价格 → 确认下单。自带 Key 直连主流大模型，无需后端。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☕</text></svg>" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header>
+  <div class="brand">☕ 瑞幸点单 Agent</div>
+  <div class="meta" id="meta"><span class="chip">加载中…</span></div>
+  <button id="btnSettings" title="连接设置">⚙️ 设置</button>
+  <button id="btnLoc" title="使用浏览器定位">📍 定位</button>
+  <button id="btnClear" title="清空对话">🗑 清空</button>
+</header>
+
+<div class="banner hide" id="banner"></div>
+
+<section class="settings" id="settings">
+  <div class="grid">
+    <div class="group-title">① 数据来源（去哪儿取门店 / 商品 / 订单）</div>
+    <label>
+      数据来源
+      <select id="cfgBackend"></select>
+    </label>
+    <label>
+      后端地址（选“连接服务”时填写）
+      <input id="cfgBaseUrl" placeholder="http://127.0.0.1:8000" autocomplete="off" />
+    </label>
+    <label>
+      访问口令（后端设了 WEB_PASSWORD 才需要）
+      <input id="cfgPassword" type="password" placeholder="可留空" autocomplete="off" />
+    </label>
+
+    <div class="group-title">② 模型来源（谁来思考）</div>
+    <label>
+      模型来源
+      <select id="cfgLlmMode"></select>
+    </label>
+    <label>
+      服务商（选好会自动填地址）
+      <select id="cfgProvider"></select>
+    </label>
+    <label>
+      接口地址 Base URL
+      <input id="cfgLlmBaseUrl" placeholder="https://api.deepseek.com/v1" autocomplete="off" />
+    </label>
+    <label>
+      模型名（可从下拉选，也可自己填）
+      <input id="cfgLlmModel" list="modelOptions" placeholder="deepseek-chat" autocomplete="off" />
+      <datalist id="modelOptions"></datalist>
+    </label>
+    <label>
+      临时 API Key
+      <input id="cfgLlmKey" type="password" placeholder="sk-... 只存在你本机" autocomplete="off" />
+    </label>
+  </div>
+
+  <div class="tip provider-note" id="cfgProviderNote"></div>
+
+  <div class="row" style="max-width:880px;margin:12px auto 0">
+    <button class="primary" id="btnApply">保存并重连</button>
+    <button id="btnPing">测试连接</button>
+    <button id="btnToggleKey">显示 Key</button>
+    <button id="btnForgetKey">清除 Key</button>
+    <a id="cfgKeyUrl" class="key-link hide" href="#" target="_blank" rel="noreferrer">去申请 Key →</a>
+    <span class="status" id="cfgStatus"></span>
+  </div>
+
+  <div class="tip privacy" id="cfgPrivacy">
+    🔐 选择「直连模型」时，你的 API Key 只写进本机浏览器 localStorage，请求由浏览器直接发往你选的服务商，
+    <b>不会经过本站服务器</b>（本页是纯静态页面，根本没有后端）。公用电脑请用完点「清除 Key」。
+  </div>
+  <div class="tip" id="cfgTip"></div>
+</section>
+
+<main>
+  <div class="wrap" id="chat">
+    <div class="center" id="empty">
+      说一句“来一杯冰生椰拿铁，少少甜”试试。<br />
+      我会先帮你找门店、挑商品、试算价格，确认后才真正下单。
+    </div>
+  </div>
+</main>
+
+<footer>
+  <form class="composer" id="composer">
+    <textarea id="input" rows="1" placeholder="想喝什么？（Enter 发送，Shift+Enter 换行）"></textarea>
+    <button class="primary" type="submit" id="send">发送</button>
+  </form>
+  <div class="hint" id="hint">下单前会弹确认卡片；支付二维码下单后直接在对话里显示。</div>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
