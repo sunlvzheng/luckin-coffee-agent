@@ -1,5 +1,7 @@
 # ☕ 瑞幸点单 Agent
 
+🔗 **在线演示**：<https://sunlvzheng.github.io/luckin-coffee-agent/> —— 打开即是演示模式，零配置、不会下单扣款。
+
 一套**公用心核**（纯 ESM JavaScript，浏览器 / Node 通用）+ 可插拔后端，把瑞幸官方的点单能力做成
 一个干净的对话式 Agent。既可以直接丢到 **GitHub Pages 当静态站**，也可以在本机跑成**真实下单**的服务。
 
