@@ -163,6 +163,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if origin:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
+        # 本机桥是个「随时会更新」的本地应用：静态页面一律先重新校验再使用。
+        # 不然改完 app.js 刷新页面还是旧代码，看起来像没生效（本地开发踩过好几次）。
+        # StaticFiles 带 ETag / Last-Modified，重新校验基本都命中 304，代价很小。
+        if request.method == "GET" and not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
     def auth(x_password: str | None = Header(default=None, alias="X-Password")) -> None:

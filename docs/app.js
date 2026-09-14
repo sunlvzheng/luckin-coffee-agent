@@ -200,7 +200,49 @@ const el = (tag, className, html) => {
   return node;
 };
 
-const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+// 滚动容器是 <main>（body 是 flex + height:100%，窗口本身不滚动），
+// 所以不能 window.scrollTo —— 那样是个空操作，页面永远停在原地。
+// 这里按样式去找真正的滚动宿主，顺便让它对以后的布局调整免疫。
+function scrollHost() {
+  let node = chatEl.parentElement;
+  while (node && node !== document.body) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY)) return node;
+    node = node.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+// 用户往上翻看历史时就别把他拽回底部；他自己滑回底部再恢复跟随
+let autoFollow = true;
+const NEAR_BOTTOM = 80;
+
+function isNearBottom(host) {
+  return host.scrollHeight - host.scrollTop - host.clientHeight <= NEAR_BOTTOM;
+}
+
+function scrollToBottom({ force = false } = {}) {
+  if (!force && !autoFollow) return;
+  const host = scrollHost();
+  if (!host) return;
+  // 逐字流式时用平滑滚动会不断排队、越滚越卡，直接落到底更稳
+  host.scrollTop = host.scrollHeight;
+  autoFollow = true;
+}
+
+function bindAutoFollow() {
+  const host = scrollHost();
+  if (!host) return;
+  autoFollow = isNearBottom(host);
+  host.addEventListener("scroll", () => { autoFollow = isNearBottom(host); }, { passive: true });
+  // 内容常常在最后一次滚动「之后」才变高：卡片替换、图片加载完成、输入框撑高……
+  // 只靠调用点去补滚动总会漏，这里统一观察高度变化，只要还在跟随状态就重新贴底。
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => {
+      if (autoFollow) host.scrollTop = host.scrollHeight;
+    });
+    observer.observe(chatEl);
+  }
+}
 
 const hideEmpty = () => $("empty")?.remove();
 
@@ -233,7 +275,7 @@ function addUser(text) {
   content.appendChild(bubble);
   message.appendChild(content);
   chatEl.appendChild(message);
-  scrollToBottom();
+  scrollToBottom({ force: true });   // 自己刚发的话，无论如何都要看到
 }
 
 function addDelta(text) {
@@ -1023,6 +1065,8 @@ $("btnLoc").addEventListener("click", () => {
   fillForm();
   await rebuild();
   restoreUi();
+  scrollToBottom({ force: true });   // 恢复上次会话后直接落到底部
+  bindAutoFollow();
   // 静默探测本机桥接服务，拿到结果后再刷新顶部状态与向导
   probeLocalBridge({ silent: true }).then(() => renderBridgeStatus());
   inputEl.focus();
