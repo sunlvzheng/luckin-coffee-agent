@@ -24,6 +24,10 @@ const SESSION_KEY = "luckin.session.v1";
 /** 本机桥接服务常见的监听地址（按顺序探测） */
 const LOCAL_BRIDGE_CANDIDATES = ["http://127.0.0.1:8000", "http://localhost:8000"];
 const REPO_URL = "https://github.com/sunlvzheng/luckin-coffee-agent";
+// 一键启动脚本。刻意用 raw.githubusercontent 而不是 github.io：
+// Pages 对 .ps1 返回 application/octet-stream，irm 会按 ISO-8859-1 解码 → 中文全乱码；
+// raw 返回 text/plain; charset=utf-8，irm | iex 才能正常显示中文。
+const INSTALL_PS1_URL = "https://raw.githubusercontent.com/sunlvzheng/luckin-coffee-agent/main/docs/install.ps1";
 const IS_WINDOWS = /windows/i.test(navigator.userAgent);
 
 const LLM_MODES = [
@@ -748,14 +752,43 @@ function renderWizard() {
       <code>WEB_ALLOW_ORIGINS=${escapeHtml(location.origin)}</code>
     </div>`;
 
+  // 一行命令：自动完成下面三步。Windows 才有 PowerShell 一键脚本。
+  const oneLineCommand = `irm ${INSTALL_PS1_URL} | iex`;
+  const oneLineBlock = IS_WINDOWS
+    ? `
+    <div class="oneline">
+      <div class="oneline-head">🚀 一行搞定（推荐）</div>
+      <div class="oneline-sub">
+        复制下面这行，粘到 <b>PowerShell</b> 里回车。它会自动装好瑞幸 CLI、拉起登录、
+        下载并启动本机服务，最后打开 <code>http://127.0.0.1:8000</code>。
+        <br />跑完<b>建议直接用那个页面点单</b> —— 它和本机服务同源，不用配跨域。
+      </div>
+      <div class="cmd big">
+        <code>${escapeHtml(oneLineCommand)}</code>
+        <button data-copy="${escapeHtml(oneLineCommand)}">复制命令</button>
+      </div>
+      <div class="oneline-note">重复运行也没问题：已经装好的会直接复用，秒开。</div>
+    </div>`
+    : `
+    <div class="oneline">
+      <div class="oneline-head">🚀 一键启动</div>
+      <div class="oneline-sub">目前只提供了 Windows 的一键脚本；macOS / Linux 请按下面的步骤手动来。</div>
+    </div>`;
+
+  const manualBlock = `
+    <details class="manual">
+      <summary>或者，手动一步步来（想自己控制、或排查问题看这里）</summary>
+      <div class="sub" style="margin:8px 0 4px">每步的状态会自动检测，做完点底部「重新检测」。</div>
+      ${stepsHtml}
+    </details>`;
+
   box.innerHTML = `
-    <h6>🔌 连上本机服务（3 步）</h6>
-    <div class="sub">做完这三步，页面就能用真实门店数据、真实下单；每步的状态会自动检测。</div>
+    <h6>🔌 连上本机服务</h6>
+    <div class="sub">浏览器不能直接调瑞幸接口，所以真实下单要在你自己电脑上跑一个小服务。</div>
     ${summary}
-    ${stepsHtml}
-    <div class="hintline">第 3 步需要本项目代码；不想装 Python 的话，可下载「单文件 exe」双击即用：
-      <a href="${REPO_URL}/releases/latest" target="_blank" rel="noreferrer">去下载 →</a>
-    </div>
+    ${oneLineBlock}
+    ${manualBlock}
+    <div class="hintline">不想用命令行？也可以去 <a href="${REPO_URL}/releases/latest" target="_blank" rel="noreferrer">Releases</a> 下载「单文件 exe」双击运行；第 3 步的内容就是它。</div>
     <div class="row" style="margin-top:10px">
       <button id="btnReprobe">重新检测</button>
       <button class="primary" id="btnUseBridge" ${connected ? "" : "disabled"}>用本机服务</button>
