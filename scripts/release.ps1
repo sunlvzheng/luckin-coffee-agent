@@ -105,7 +105,15 @@ $notes = @'
 
 双击即用，不用装 Python / Node：启动后会自检、托管网页、并自动打开浏览器。
 
-### 用法
+### 一键（推荐）
+
+在 PowerShell 里粘这一行回车，全自动（装 CLI → 登录 → 下载并启动本服务）：
+
+```
+irm https://raw.githubusercontent.com/sunlvzheng/luckin-coffee-agent/main/docs/install.ps1 | iex
+```
+
+### 手动
 
 1. 下载下面的 `luckin-bridge.exe`，放到任意目录
 2. 装好并登录瑞幸 CLI（网页里的「配置向导」每步都有可一键复制的命令）
@@ -148,16 +156,20 @@ $payload = @{
 [IO.File]::WriteAllText($jsonPath, $payload, (New-Object Text.UTF8Encoding $false))
 
 # --------------------------------------------------------------------------- #
-# 5. 创建（或复用）release
+# 5. 创建 release；已存在就更新说明（否则改了模板也白改）
 # --------------------------------------------------------------------------- #
-$release = $null
+$existing = $null
 try {
-  $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$Tag" -Headers $headers -TimeoutSec 30
-  Write-Host "==> 标签 $Tag 的 release 已存在（id=$($release.id)），复用" -ForegroundColor Yellow
+  $existing = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$Tag" -Headers $headers -TimeoutSec 30
 } catch {
-  $release = $null
+  $existing = $null
 }
-if (-not $release) {
+
+if ($existing) {
+  Write-Host "==> release 已存在（id=$($existing.id)），更新名称与说明" -ForegroundColor Yellow
+  $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$($existing.id)" `
+    -Method Patch -Headers $headers -ContentType "application/json" -InFile $jsonPath -TimeoutSec 120
+} else {
   Write-Host "==> 创建 release"
   $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases" `
     -Method Post -Headers $headers -ContentType "application/json" -InFile $jsonPath -TimeoutSec 120
