@@ -74,6 +74,60 @@ def default_exe_path() -> Path:
     return LUCKIN_HOME / "bin" / "luckin.exe"
 
 
+def other_exe_paths() -> list[Path]:
+    """除默认位置外，再猜几个可能的安装位置，方便自动识别。"""
+    home = Path.home()
+    names = ("luckin.exe", "luckin") if os.name == "nt" else ("luckin",)
+    candidates: list[Path] = []
+    for name in names:
+        candidates += [
+            LUCKIN_HOME / "bin" / name,
+            home / "AppData" / "Local" / ".luckin" / "bin" / name,
+            home / ".local" / "bin" / name,
+            Path("/usr/local/bin") / name,
+            Path("/opt/homebrew/bin") / name,
+        ]
+    return candidates
+
+
+def find_luckin_exe(explicit: str = "") -> Path:
+    """自动识别 luckin CLI：显式路径 → 环境变量 → 默认位置 → 若干常见路径。"""
+    if explicit:
+        return Path(explicit)
+    env = os.environ.get("LUCKIN_EXE")
+    if env:
+        return Path(env)
+    default = default_exe_path()
+    if default.exists():
+        return default
+    for candidate in other_exe_paths():
+        if candidate.exists():
+            return candidate
+    return default
+
+
+def luckin_token_present() -> bool:
+    """~/.luckin/.env 里是否已有登录 Token —— 也就是「CLI 登录过没有」。"""
+    path = LUCKIN_HOME / ".env"
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    for line in text.splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() == "LUCKIN_MCP_ORDER_TOKEN" and value.strip().strip("\"'"):
+            return True
+    return False
+
+
+def install_command() -> str:
+    """官方一键安装命令（实测存在，免管理员）。"""
+    if os.name == "nt":
+        return "irm https://open.lkcoffee.com/window/install | iex"
+    return "curl -fsSL https://open.lkcoffee.com/install | bash"
+
+
+
 def openai_base(base_url: str) -> str:
     """把用户填的地址规范成 OpenAI 兼容 base（必要时补 /v1）。"""
     trimmed = (base_url or "").strip().rstrip("/")
@@ -188,8 +242,7 @@ def load_settings(env_file: Path | None = None) -> Settings:
     get = os.environ.get
 
     settings = Settings(
-        exe=get("LUCKIN_EXE") or str(default_exe_path()),
-        token=(get("LUCKIN_MCP_ORDER_TOKEN") or "").strip() or None,
+        exe=str(find_luckin_exe(get("LUCKIN_EXE") or "")),        token=(get("LUCKIN_MCP_ORDER_TOKEN") or "").strip() or None,
         timeout=float(get("LUCKIN_TIMEOUT", "120") or 120),
         lat=_as_float(get("LUCKIN_LAT")),
         lng=_as_float(get("LUCKIN_LNG")),

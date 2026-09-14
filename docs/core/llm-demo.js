@@ -48,10 +48,26 @@ const findPayload = (payloads, key) => {
 const toQuery = (text) =>
   String(text || "")
     .replace(/[（(][^）)]*[）)]/g, " ")
+    .replace(/[「」『』“”"]/g, " ")
     .replace(/(就用|就要|帮我|来一杯|来两杯|我想要|给我|下单|这家店|这个|的话)/g, " ")
     .replace(/[，,。！!？?]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+/** 本轮之前的用户发言（不含正在回复的这一条）里，最近一次真正提到「想喝什么」的 */
+const pickQuery = (messages) => {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "user") continue;
+    const text = String(message.content || "");
+    // 纯定位、纯坐标、纯流程指令都不是商品需求，跳过继续往前找
+    if (/^\s*(我的位置是|定位|坐标)/.test(text)) continue;
+    if (/deptId=|skuCode=/.test(text) && !/[喝杯]|拿铁|美式|咖啡|茶|奶/.test(text)) continue;
+    const query = toQuery(text);
+    if (query) return query;
+  }
+  return "";
+};
 
 /** 规则决策：返回 { speech, tool } */
 const decide = (messages) => {
@@ -147,7 +163,7 @@ const decide = (messages) => {
     if (!deptId) return { speech: "附近没有找到营业中的门店，换个位置试试？" };
     return {
       speech: "选好门店了，看看想喝什么～",
-      tool: { name: "search_products", args: { dept_id: deptId, query: toQuery(lastUser) || "生椰拿铁" } },
+      tool: { name: "search_products", args: { dept_id: deptId, query: pickQuery(messages) || "生椰拿铁" } },
     };
   }
 

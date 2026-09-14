@@ -21,6 +21,11 @@ import { createDemoLlm } from "./core/llm-demo.js";
 const CONFIG_KEY = "luckin.config.v1";
 const SESSION_KEY = "luckin.session.v1";
 
+/** 本机桥接服务常见的监听地址（按顺序探测） */
+const LOCAL_BRIDGE_CANDIDATES = ["http://127.0.0.1:8000", "http://localhost:8000"];
+const REPO_URL = "https://github.com/sunlvzheng/luckin-coffee-agent";
+const IS_WINDOWS = /windows/i.test(navigator.userAgent);
+
 const LLM_MODES = [
   { id: "demo", label: "内置演示模型（无需 Key）" },
   { id: "direct", label: "直连模型（填自己的 Key）" },
@@ -68,6 +73,41 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 const chatEl = $("chat");
+
+/** 本机桥的探测结果：status 为 null 表示没探到 */
+const bridgeState = { status: null, baseUrl: "", checked: false };
+
+const fetchWithTimeout = async (url, ms) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal, cache: "no-store" });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/** 探测本机桥接服务。跨域被拦 / 没启动 都会走到「没探到」。 */
+async function probeLocalBridge({ silent = false } = {}) {
+  for (const base of LOCAL_BRIDGE_CANDIDATES) {
+    try {
+      const response = await fetchWithTimeout(`${base}/api/status`, 2000);
+      if (!response.ok) continue;
+      bridgeState.status = await response.json();
+      bridgeState.baseUrl = base;
+      bridgeState.checked = true;
+      if (!silent) renderBridgeStatus();
+      return bridgeState.status;
+    } catch {
+      /* 换下一个地址 */
+    }
+  }
+  bridgeState.status = null;
+  bridgeState.baseUrl = "";
+  bridgeState.checked = true;
+  if (!silent) renderBridgeStatus();
+  return null;
+}
 
 // --------------------------------------------------------------------------- //
 // Markdown 极简渲染
@@ -547,6 +587,7 @@ async function rebuild() {
   $("cfgStatus").textContent = ping.ok ? `✅ ${state.backend.label}${ping.detail ? `（${ping.detail}）` : ""}` : `❌ ${ping.detail}`;
   updateMeta();
   updateTip();
+  renderWizard();
 }
 
 function updateMeta() {
@@ -563,15 +604,198 @@ function updateMeta() {
   chips.push(state.session.lat != null
     ? `<span class="chip">📍 ${Number(state.session.lat).toFixed(4)}, ${Number(state.session.lng).toFixed(4)}</span>`
     : '<span class="chip warn">📍 未设置定位</span>');
-  $("meta").innerHTML = chips.join("");
 
-  const banner = $("banner");
-  if (backend && !backend.realOrder) {
-    banner.textContent = `演示模式：使用内置样例数据，不会调用真实接口、不会下单扣款。要真实点单请在「设置」里切换到「连接服务」。`;
-    banner.classList.remove("hide");
-  } else {
-    banner.classList.add("hide");
+  // 本机桥接服务的探测结果
+  const status = bridgeState.status;
+  if (status) {
+    chips.push(`<span class="chip ${status.ready ? "ok" : "warn"}">🔌 本机服务${status.ready ? "已就绪" : "未就绪"}</span>`);
+  } else if (bridgeState.checked && state.config.backendMode === "http") {
+    chips.push('<span class="chip err">🔌 未检测到本机服务</span>');
   }
+
+  $("meta").innerHTML = chips.join("");
+  updateBanner();
+}
+
+/** 顶部提示条：按“桥接状态 + 当前数据来源”决定说什么 */
+function setBanner({ kind = "warn", html = "", action = null } = {}) {
+  const banner = $("banner");
+  if (!html) {
+    banner.className = "banner hide";
+    banner.innerHTML = "";
+    return;
+  }
+  banner.className = `banner ${kind}`;
+  banner.innerHTML = `<span>${html}</span>`;
+  if (action) {
+    const button = el("button", "mini", action.label);
+    button.onclick = action.onClick;
+    banner.appendChild(button);
+  }
+}
+
+function updateBanner() {
+  const status = bridgeState.status;
+  const isHttp = state.config.backendMode === "http";
+
+  if (status && !isHttp) {
+    setBanner({
+      kind: "info",
+      html: `🔌 检测到本机桥接服务（${status.ready ? "CLI 已就绪" : "还差几步"}）—— 切过去就能用真实门店数据、真实下单。`,
+      action: { label: "切换为真实数据", onClick: () => switchToLocalBridge() },
+    });
+    return;
+  }
+  if (!status && isHttp) {
+    setBanner({
+      kind: "warn",
+      html: `连不上本机服务（${escapeHtml(state.config.baseUrl || "未填地址")}）—— 请确认桥已启动。`,
+      action: { label: "打开配置向导", onClick: () => openWizard() },
+    });
+    return;
+  }
+  if (state.backend && !state.backend.realOrder) {
+    setBanner({
+      kind: "warn",
+      html: "演示模式：使用内置样例数据，不会调用真实接口、不会下单扣款。",
+      action: { label: "怎么用真实数据？", onClick: () => openWizard() },
+    });
+    return;
+  }
+  setBanner({});
+}
+
+function openWizard() {
+  $("settings").classList.add("open");
+  renderWizard();
+  $("wizard")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/** 切换数据来源到本机桥并重连 */
+async function switchToLocalBridge() {
+  $("cfgBackend").value = "http";
+  $("cfgBaseUrl").value = bridgeState.baseUrl || LOCAL_BRIDGE_CANDIDATES[0];
+  await rebuild();
+  updateBanner();
+}
+
+const markOf = (value) => (value === true ? "✅" : value === false ? "⬜" : "⏳");
+
+/** 三步配置向导：能探到桥就自动判断每一步做没做 */
+function renderWizard() {
+  const box = $("wizard");
+  if (!box) return;
+
+  const status = bridgeState.status;
+  const connected = Boolean(status);
+  const isHttp = state.config.backendMode === "http";
+  const shouldShow = isHttp || (connected && !status.ready);
+  if (!shouldShow) {
+    box.classList.add("hide");
+    box.innerHTML = "";
+    return;
+  }
+
+  const installCommand = status?.installCommand
+    || (IS_WINDOWS ? "irm https://open.lkcoffee.com/window/install | iex" : "curl -fsSL https://open.lkcoffee.com/install | bash");
+  const startCommand = IS_WINDOWS
+    ? "powershell -ExecutionPolicy Bypass -File .\\run.ps1"
+    : "python -m coffee_agent.server";
+
+  const steps = [
+    {
+      title: "安装瑞幸 CLI",
+      desc: "官方一键安装，免管理员，装到你的用户目录。",
+      command: installCommand,
+      state: connected ? Boolean(status.exeOk) : null,
+    },
+    {
+      title: "登录瑞幸账号",
+      desc: "会打开浏览器登录；Token 只写在你本机（~/.luckin/.env），不经过任何服务器。",
+      command: status?.loginCommand || "luckin login",
+      state: connected ? Boolean(status.tokenOk) : null,
+    },
+    {
+      title: "启动本机桥接服务",
+      desc: "浏览器不能直接调瑞幸接口，需要一个本机服务代为执行。",
+      command: startCommand,
+      state: connected,
+    },
+  ];
+
+  const currentIndex = steps.findIndex((step) => step.state !== true);
+
+  const summary = `
+    <div class="wizard-status">
+      <span class="chip ${connected ? "ok" : "err"}">桥接服务：${connected ? "已连接" : "未连接"}</span>
+      <span class="chip ${connected ? (status.exeOk ? "ok" : "err") : ""}">CLI：${connected ? (status.exeOk ? "已安装" : "未安装") : "待检测"}</span>
+      <span class="chip ${connected ? (status.tokenOk ? "ok" : "err") : ""}">登录：${connected ? (status.tokenOk ? "已登录" : "未登录") : "待检测"}</span>
+    </div>`;
+
+  const stepsHtml = steps.map((step, index) => `
+    <div class="wizard-step${index === currentIndex ? " cur" : ""}">
+      <div class="mark">${markOf(step.state)}</div>
+      <div>
+        <div class="title">${index + 1}. ${escapeHtml(step.title)}</div>
+        <div class="desc">${escapeHtml(step.desc)}</div>
+        <div class="cmd"><code>${escapeHtml(step.command)}</code><button data-copy="${escapeHtml(step.command)}">复制</button></div>
+      </div>
+    </div>`).join("");
+
+  const originHint = `
+    <div class="hintline">
+      连不上先看这两点：① 桥确实在运行；② 本页托管在别处（如 GitHub Pages）时，桥的 <code>.env</code> 里要有
+      <code>WEB_ALLOW_ORIGINS=${escapeHtml(location.origin)}</code>
+    </div>`;
+
+  box.innerHTML = `
+    <h6>🔌 连上本机服务（3 步）</h6>
+    <div class="sub">做完这三步，页面就能用真实门店数据、真实下单；每步的状态会自动检测。</div>
+    ${summary}
+    ${stepsHtml}
+    <div class="hintline">第 3 步需要本项目代码；不想装 Python 的话，可下载「单文件 exe」双击即用：
+      <a href="${REPO_URL}/releases" target="_blank" rel="noreferrer">去下载 →</a>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnReprobe">重新检测</button>
+      <button class="primary" id="btnUseBridge" ${connected ? "" : "disabled"}>用本机服务</button>
+      <span class="status" id="wizardStatus">${connected ? `已连上 ${escapeHtml(bridgeState.baseUrl)}` : "未检测到本机服务"}</span>
+    </div>
+    ${originHint}`;
+
+  box.classList.remove("hide");
+  attachCopyButtons(box);
+
+  $("btnReprobe").onclick = async () => {
+    $("wizardStatus").textContent = "检测中…";
+    await probeLocalBridge({ silent: true });
+    renderWizard();
+    updateMeta();
+  };
+  $("btnUseBridge").onclick = () => {
+    if (bridgeState.status) switchToLocalBridge();
+  };
+}
+
+function attachCopyButtons(container) {
+  container.querySelectorAll("[data-copy]").forEach((button) => {
+    button.onclick = async () => {
+      const text = button.getAttribute("data-copy") || "";
+      const original = button.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "已复制";
+      } catch {
+        window.prompt("手动复制下面的命令：", text);
+      }
+      setTimeout(() => { button.textContent = original; }, 1400);
+    };
+  });
+}
+
+function renderBridgeStatus() {
+  updateMeta();
+  renderWizard();
 }
 
 function updateTip() {
@@ -705,6 +929,15 @@ $("cfgProvider").addEventListener("change", () => {
   updateTip();
 });
 
+$("cfgBackend").addEventListener("change", () => {
+  const mode = $("cfgBackend").value;
+  if (mode === "http") {
+    if (!$("cfgBaseUrl").value.trim() && bridgeState.baseUrl) $("cfgBaseUrl").value = bridgeState.baseUrl;
+    $("settings").classList.add("open");
+    renderWizard();
+  }
+});
+
 $("cfgLlmMode").addEventListener("change", () => {
   const direct = $("cfgLlmMode").value === "direct";
   $("settings").classList.add("open");
@@ -753,5 +986,7 @@ $("btnLoc").addEventListener("click", () => {
   fillForm();
   await rebuild();
   restoreUi();
+  // 静默探测本机桥接服务，拿到结果后再刷新顶部状态与向导
+  probeLocalBridge({ silent: true }).then(() => renderBridgeStatus());
   inputEl.focus();
 })();

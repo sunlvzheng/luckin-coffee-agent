@@ -239,7 +239,11 @@ export class ToolRunner {
     await this.backend.noteQuery?.(query, { deptId });
 
     const products = (await this.backend.searchProducts({ deptId, query })) || [];
-    if (!products.length) return outcome(true, { deptId, count: 0, products: [] });
+    if (!products.length) {
+      return outcome(true, { deptId, count: 0, products: [] }, {
+        display: `没搜到「${query}」，换个说法试试`,
+      });
+    }
 
     const candidate = session.storeCandidates?.[deptId];
     session.store = candidate
