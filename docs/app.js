@@ -754,7 +754,7 @@ function renderWizard() {
     ${summary}
     ${stepsHtml}
     <div class="hintline">第 3 步需要本项目代码；不想装 Python 的话，可下载「单文件 exe」双击即用：
-      <a href="${REPO_URL}/releases" target="_blank" rel="noreferrer">去下载 →</a>
+      <a href="${REPO_URL}/releases/latest" target="_blank" rel="noreferrer">去下载 →</a>
     </div>
     <div class="row" style="margin-top:10px">
       <button id="btnReprobe">重新检测</button>

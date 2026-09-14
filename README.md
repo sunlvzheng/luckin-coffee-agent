@@ -120,14 +120,25 @@ node bin/coffee.mjs --demo    # 不连真实接口，只看流程
 
 ### 不想装 Python？用单文件 exe
 
+**直接下载**：<https://github.com/sunlvzheng/luckin-coffee-agent/releases/latest>
+（`luckin-bridge.exe`，约 15 MB，网页已打包进去，双击即用）
+
+自己打包：
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1
-# 产物：dist\luckin-bridge.exe（约 15 MB，网页已打包进去）
+# 产物：dist\luckin-bridge.exe
 ```
 
 把 exe 拷到任意目录双击即可 —— 它会做同样的自检、托管同一个网页、自动开浏览器。
 需要自定义配置就在 exe 旁边放一个 `.env`（exe 不会去别处找）。首次运行 Windows 可能提示
 「未知发布者」，选「更多信息 → 仍要运行」。
+
+想发布新版本到 Releases（凭据复用 Git Credential Manager，脚本可重复运行）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -Tag v0.2.0
+```
 
 ---
 
@@ -255,6 +266,7 @@ bin/coffee.mjs              ← Node 终端版
 scripts/core_test.mjs       ← 心核离线自测
 scripts/smoke.py            ← 真实 CLI 只读冒烟
 scripts/build_exe.ps1       ← 打包单文件 exe
+scripts/release.ps1         ← 发布到 GitHub Releases（幂等，可重复运行）
 ```
 
 ---
